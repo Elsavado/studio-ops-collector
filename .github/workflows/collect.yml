@@ -50,6 +50,8 @@ jobs:
           python-version: "3.12"
           cache: pip
       - run: pip install -r requirements.txt
+      - name: LibreOffice (web-page documents are saved as PDF)
+        run: sudo apt-get update -qq && sudo apt-get install -y -qq --no-install-recommends libreoffice-writer > /dev/null
       - uses: ./.github/actions/rclone
         with:
           conf: ${{ secrets.RCLONE_CONF }}

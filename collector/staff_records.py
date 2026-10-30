@@ -39,6 +39,9 @@ def collect(m):
     L = m.L
     eid = {e["name"]: e["id"] for e in m.staff}
     work = {}
+    if hasattr(m, "work_counts"):  # companies other than the security firm count their own kinds of work
+        work = {k: list(v) for k, v in m.work_counts.items()}
+        m.alerts, m.tickets, m.workorders = [], [], []
     for a in m.alerts:
         k = a[6]["id"]
         work.setdefault(k, [0, 0, 0])[0] += 1
@@ -61,9 +64,10 @@ def expenses(m):
     r = random.Random(f"exp-{m.tag}")
     rows, m.expense_by = [], {}
     mgr = {e["id"]: e for e in m.staff}
-    heads = {"Chief Executive Officer", "Operations Director", "Finance Manager", "SOC Manager", "Field Services Manager"}
+    heads = set(getattr(m.C, "HEADS", {}).values()) or {"Chief Executive Officer"}
+    table = getattr(m.C, "EXPENSES", EXPENSES)
     for e in m.staff:
-        opts = EXPENSES.get(e["role"]) or (MGMT_EXP if e["role"] in heads else [])
+        opts = table.get(e["role"]) or (MGMT_EXP if e["role"] in heads else [])
         for cat, desc, lo, hi, p in opts:
             if r.random() < p:
                 amt = round(r.uniform(lo, hi), 2)
@@ -192,15 +196,17 @@ def person_year(w, L, y, sink, C, final=True):
         save_book(sink, f"{base}/02 Pay/Pay statement {y}.xlsx", wb, "Pay statement", BANNER)
         wl = [[k, recs[k][8], recs[k][9], recs[k][10], recs[k][3], recs[k][7]] for k in months]
         wb = new_book()
-        add_sheet(wb, f"Work {y}", ["Month", "SOC alarms handled", "Help desk tickets", "Work orders",
-                                    "Overtime hours", "Leave days"], wl)
+        a, b, c = getattr(C, "WORK_LABELS", ("SOC alarms handled", "Help desk tickets", "Work orders"))
+        add_sheet(wb, f"Work {y}", ["Month", a, b, c, "Overtime hours", "Leave days"], wl)
         save_book(sink, f"{base}/06 Work Log/Work log {y}.xlsx", wb, "Work log", BANNER)
         if any(recs[k][11] for k in months):
             wb = new_book()
             add_sheet(wb, f"Expenses {y}", ["Month", "Claims total USD"], [[k, recs[k][11]] for k in months])
             save_book(sink, f"{base}/05 Expenses/Expense claims {y}.xlsx", wb, "Expenses", BANNER)
         r = random.Random(f"{eid}-{y}")
-        courses = r.sample(TRAINING.get(e["role"], []) + COMMON_TRAINING, min(3, len(TRAINING.get(e["role"], [])) + 3))
+        trn = getattr(C, "TRAINING", TRAINING)
+        common = getattr(C, "COMMON_TRAINING", COMMON_TRAINING)
+        courses = r.sample(trn.get(e["role"], []) + common, min(3, len(trn.get(e["role"], [])) + len(common)))
         tr = []
         for c in courses:
             when = dt.date(y, r.randint(int(months[0][5:]), int(months[-1][5:])), r.randint(1, 28))
@@ -221,7 +227,7 @@ def person_year(w, L, y, sink, C, final=True):
             mgr = by_id.get(e["manager"], {"name": "Chief Executive Officer"})
             d = C.new_doc(f"Performance review {y} - {e['name']}", f"{e['role']} | Reviewer: {mgr['name']}")
             C.doc_table(d, ["Measure", "Value"], [["Months in year", len(months)],
-                                                  ["Alarms / tickets / work orders", mine],
+                                                  [" / ".join(getattr(C, "WORK_LABELS", ("Alarms", "tickets", "work orders"))), mine],
                                                   ["Team average", round(avg)], ["Overtime hours",
                                                                                 sum(recs[k][3] for k in months)],
                                                   ["Overall rating (1-5)", score]])
@@ -492,10 +498,12 @@ IT_SOPS = {
 
 def it_sops(w, sink, C):
     r = random.Random(C.SEED + 11)
-    owner = next((e["name"] for e in w.staff if e["role"] == "Operations Director"), w.staff[0]["name"])
-    for title, sections in IT_SOPS.items():
+    sops = getattr(C, "IT_SOPS", IT_SOPS)
+    owner = next((e["name"] for e in w.staff if e["role"] in ("Operations Director", "Chief Technology Officer")),
+                 w.staff[0]["name"])
+    for title, sections in sops.items():
         d = C.new_doc(title, f"IT Standard Operating Procedure | Version {r.randint(1, 4)}.{r.randint(0, 9)}")
-        C.doc_table(d, ["Owner", "Applies to", "Review"], [[owner, "IT Support, Network, Cloud, SOC", "Annual"]])
+        C.doc_table(d, ["Owner", "Applies to", "Review"], [[owner, getattr(C, "SOP_SCOPE", "IT Support, Network, Cloud, SOC"), "Annual"]])
         for h, steps in sections:
             d.add_heading(h, 1)
             for i, s in enumerate(steps, 1):

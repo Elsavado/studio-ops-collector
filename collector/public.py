@@ -4,6 +4,8 @@ import hashlib
 import io
 import os
 import re
+import shutil
+import subprocess
 import time
 
 from docx import Document
@@ -165,12 +167,32 @@ def _download(s, url, cap, sink, rel):
         if n > cap or n == 0:
             os.remove(p)
             return False
+        if p.lower().endswith((".htm", ".html")):
+            p = html_to_pdf(p)
         sink.wrote(p)
         return True
     except Exception:
         if os.path.exists(p):
             os.remove(p)
         return False
+
+
+def html_to_pdf(p):
+    """Web-page documents (SEC filings, contract exhibits) are kept as PDF; the HTML is removed when it converts."""
+    soffice = shutil.which("soffice") or shutil.which("libreoffice")
+    if not soffice:
+        return p
+    outdir = os.path.dirname(p)
+    try:
+        subprocess.run([soffice, "--headless", "--norestore", "--convert-to", "pdf:writer_web_pdf_Export",
+                        "--outdir", outdir, p], capture_output=True, timeout=300)
+    except (subprocess.TimeoutExpired, OSError):
+        return p
+    pdf = os.path.splitext(p)[0] + ".pdf"
+    if os.path.exists(pdf) and os.path.getsize(pdf) > 0:
+        os.remove(p)
+        return pdf
+    return p
 
 
 def _open(lic):
