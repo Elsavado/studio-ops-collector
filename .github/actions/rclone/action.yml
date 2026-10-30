@@ -1,0 +1,27 @@
+name: rclone setup
+description: Install rclone, write its config, pull run state from Drive and work out the size budget
+inputs:
+  conf:
+    description: rclone.conf contents with a [pax] Google Drive remote (empty = dry run only)
+    required: false
+runs:
+  using: composite
+  steps:
+    - shell: bash
+      env:
+        RCLONE_CONF: ${{ inputs.conf }}
+      run: |
+        curl -fsSL https://rclone.org/install.sh | sudo bash >/dev/null
+        mkdir -p ~/.config/rclone state
+        if [ -z "$RCLONE_CONF" ]; then
+          echo "No RCLONE_CONF secret: dry run with a 3 GB budget"
+          echo 3 > budget.txt
+          exit 0
+        fi
+        printf '%s\n' "$RCLONE_CONF" > ~/.config/rclone/rclone.conf
+        chmod 600 ~/.config/rclone/rclone.conf
+        rclone copy "$REMOTE/_state" state -q || true
+        # Drive space: keep 2 GB free, at most 25 GB per run (runner disk is cleared as files are moved)
+        free=$(rclone about pax: --json | python3 -c "import json,sys; d=json.load(sys.stdin); print(d.get('free', 10**15))")
+        python3 -c "f=$free/2**30; b=max(0.0, min(25.0, f-2)); print(round(b,2))" > budget.txt
+        echo "Drive free: $(python3 -c "print(round($free/2**30,1))") GB; run budget: $(cat budget.txt) GB"

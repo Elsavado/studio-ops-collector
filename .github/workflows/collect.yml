@@ -1,0 +1,94 @@
+name: collect
+
+# Runs every 6 hours. Each job collects into the runner and moves files to Google Drive with rclone
+# as it goes. Uploads happen only when repo variable LIVE is "true"; otherwise it is a dry run.
+# This repository is public: logs print counts only.
+
+on:
+  schedule:
+    - cron: "23 */6 * * *"
+  workflow_dispatch:
+    inputs:
+      public_sources:
+        description: "public sources (comma list, empty = skip)"
+        default: "fsds,peers,contracts,ecfr,caselaw,onet,cfpb,kaggle_named,uci,opendota,datadragon,huggingface,records,itdocs,eol,techdocs,knowledge,wikipedia,books,videos,stackexchange,kaggle,ghrepos,notebooks,apps,zenodo,opendata"
+      company:
+        description: "build the fictional studio (phase 2; also needs repo variable COMPANY_LIVE=true)"
+        type: boolean
+        default: false
+      months:
+        description: "company months per run"
+        default: "40"
+      scale:
+        description: "company size (fixed once history starts)"
+        default: "3"
+      detail:
+        description: "telemetry density"
+        default: "1"
+      minutes:
+        description: "time budget per job (minutes)"
+        default: "320"
+      dry_run:
+        description: "force a dry run (no upload)"
+        type: boolean
+        default: false
+
+env:
+  REMOTE: "pax:Studio Operations Research"
+  PYTHONUNBUFFERED: "1"
+
+jobs:
+  public:
+    if: github.event_name == 'schedule' || inputs.public_sources != ''
+    runs-on: ubuntu-latest
+    timeout-minutes: 350
+    concurrency: public
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-python@v5
+        with:
+          python-version: "3.12"
+          cache: pip
+      - run: pip install -r requirements.txt
+      - uses: ./.github/actions/rclone
+        with:
+          conf: ${{ secrets.RCLONE_CONF }}
+      - name: Collect
+        env:
+          SEC_USER_AGENT: ${{ secrets.SEC_USER_AGENT }}
+          HF_TOKEN: ${{ secrets.HF_TOKEN }}
+          LIVE: ${{ vars.LIVE == 'true' && inputs.dry_run != true }}
+          KAGGLE_API_TOKEN: ${{ secrets.KAGGLE_API_TOKEN }}
+          GITHUB_TOKEN: ${{ github.token }}
+          KAGGLE_USERNAME: ${{ secrets.KAGGLE_USERNAME }}
+          KAGGLE_KEY: ${{ secrets.KAGGLE_KEY }}
+          SOURCES: ${{ inputs.public_sources || 'fsds,peers,contracts,ecfr,caselaw,onet,cfpb,kaggle_named,uci,opendota,datadragon,huggingface,records,itdocs,eol,techdocs,knowledge,wikipedia,books,videos,stackexchange,kaggle,ghrepos,notebooks,apps,zenodo,opendata' }}
+        run: |
+          budget=$(cat budget.txt)
+          flag=$([ "$LIVE" = "true" ] && echo --live || echo "")
+          python -m collector --sources "$SOURCES" --state state/public.json --budget-gb "$budget" --minutes "${{ inputs.minutes || 320 }}" $flag
+
+  company:
+    if: vars.COMPANY_LIVE == 'true' && (github.event_name == 'schedule' || inputs.company)
+    runs-on: ubuntu-latest
+    timeout-minutes: 350
+    concurrency: company
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-python@v5
+        with:
+          python-version: "3.12"
+          cache: pip
+      - run: pip install -r requirements.txt
+      - uses: ./.github/actions/rclone
+        with:
+          conf: ${{ secrets.RCLONE_CONF }}
+      - name: Build fictional company
+        env:
+          LIVE: ${{ vars.LIVE == 'true' && inputs.dry_run != true }}
+        run: |
+          budget=$(cat budget.txt)
+          flag=$([ "$LIVE" = "true" ] && echo --live || echo "--months 2")
+          python -m collector --sources company --state state/company.json --budget-gb "$budget" --minutes "${{ inputs.minutes || 320 }}" \
+            --months "${{ inputs.months || '40' }}" --scale "${{ inputs.scale || '3' }}" \
+            --detail "${{ inputs.detail || '1' }}" $flag

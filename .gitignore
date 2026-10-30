@@ -1,0 +1,5 @@
+out/
+state/
+budget.txt
+__pycache__/
+*.pyc
