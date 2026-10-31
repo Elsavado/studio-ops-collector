@@ -7,11 +7,11 @@ import os
 import time
 import traceback
 
-from . import github, kaggle, library, named, public, studio, techdocs
+from . import dossiers, github, kaggle, library, named, public, studio, techdocs
 from . import studio_company as company
 from .common import Sink, State
 
-EXTRA = {**studio.SOURCES, **named.SOURCES, **library.SOURCES, **techdocs.SOURCES, **kaggle.SOURCES, **github.SOURCES}
+EXTRA = {**dossiers.SOURCES, **studio.SOURCES, **named.SOURCES, **library.SOURCES, **techdocs.SOURCES, **kaggle.SOURCES, **github.SOURCES}
 ALL = list(public.SOURCES) + list(EXTRA) + ["company"]
 
 

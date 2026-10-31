@@ -11,7 +11,7 @@ on:
     inputs:
       public_sources:
         description: "public sources (comma list, empty = skip)"
-        default: "fsds,peers,contracts,ecfr,caselaw,onet,cfpb,kaggle_named,uci,opendota,datadragon,huggingface,records,itdocs,eol,techdocs,knowledge,wikipedia,books,videos,stackexchange,kaggle,ghrepos,notebooks,apps,zenodo,opendata"
+        default: "dossiers,hwsurvey,fsds,peers,contracts,ecfr,caselaw,onet,cfpb,kaggle_named,uci,opendota,datadragon,huggingface,records,itdocs,eol,techdocs,knowledge,wikipedia,books,videos,stackexchange,kaggle,ghrepos,notebooks,apps,zenodo,opendata"
       company:
         description: "build the fictional studio (phase 2; also needs repo variable COMPANY_LIVE=true)"
         type: boolean
@@ -51,7 +51,7 @@ jobs:
           cache: pip
       - run: pip install -r requirements.txt
       - name: LibreOffice (web-page documents are saved as PDF)
-        run: sudo apt-get update -qq && sudo apt-get install -y -qq --no-install-recommends libreoffice-writer > /dev/null
+        run: sudo apt-get update -qq && sudo apt-get install -y -qq --no-install-recommends libreoffice-writer ffmpeg > /dev/null
       - uses: ./.github/actions/rclone
         with:
           conf: ${{ secrets.RCLONE_CONF }}
@@ -64,7 +64,7 @@ jobs:
           GITHUB_TOKEN: ${{ github.token }}
           KAGGLE_USERNAME: ${{ secrets.KAGGLE_USERNAME }}
           KAGGLE_KEY: ${{ secrets.KAGGLE_KEY }}
-          SOURCES: ${{ inputs.public_sources || 'fsds,peers,contracts,ecfr,caselaw,onet,cfpb,kaggle_named,uci,opendota,datadragon,huggingface,records,itdocs,eol,techdocs,knowledge,wikipedia,books,videos,stackexchange,kaggle,ghrepos,notebooks,apps,zenodo,opendata' }}
+          SOURCES: ${{ inputs.public_sources || 'dossiers,hwsurvey,fsds,peers,contracts,ecfr,caselaw,onet,cfpb,kaggle_named,uci,opendota,datadragon,huggingface,records,itdocs,eol,techdocs,knowledge,wikipedia,books,videos,stackexchange,kaggle,ghrepos,notebooks,apps,zenodo,opendata' }}
         run: |
           budget=$(cat budget.txt)
           flag=$([ "$LIVE" = "true" ] && echo --live || echo "")
