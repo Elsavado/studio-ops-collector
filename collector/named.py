@@ -4,7 +4,7 @@ import datetime as dt
 import os
 import time
 
-from .common import get, safe, session
+from .common import english, get, safe, session
 from .public import ACC, ENG, FIN, GAME, GTM, HR, LEGAL, PROD, SECU, _download, meta_note, subtopic
 
 KAGGLE_DATASETS = {  # folder: Kaggle dataset refs
@@ -106,22 +106,26 @@ def opendota(sink, st, matches_per_run=1500):
     return got
 
 
+DD_FILES = ["champion.json", "championFull.json", "item.json", "summoner.json", "runesReforged.json",
+            "profileicon.json", "map.json", "mission-assets.json", "sticker.json", "language.json", "tft-champion.json",
+            "tft-item.json", "tft-trait.json", "tft-augments.json", "tft-arena.json", "tft-tactician.json"]
+
+
 def datadragon(sink, st):
-    """Riot Games Data Dragon: League of Legends game data and art for the current patch (free static files)."""
+    """Riot Games Data Dragon: League of Legends game data for the current patch, English (en_US) only."""
     s = session()
     r = get(s, "https://ddragon.leagueoflegends.com/api/versions.json")
     ver = r.json()[0] if r else None
-    if not ver or st.get("ddragon") == ver:
+    if not ver or st.get("ddragon_en") == ver:
         return 0
-    url = f"https://ddragon.leagueoflegends.com/cdn/dragontail-{ver}.tgz"
-    size = int(s.head(url, timeout=60).headers.get("Content-Length") or 0)
-    rel = f"{GAME}/Esports Data/League of Legends (Riot Data Dragon)/dragontail-{ver}.tgz"
-    ok = sink.copyurl(url, rel, size) if size > 3 * 2 ** 30 else _download(s, url, 3 * 2 ** 30, sink, rel)
-    if ok:
-        st["ddragon"] = ver
-        meta_note(sink, rel.rsplit("/", 1)[0], {"source": "Riot Games Data Dragon", "version": ver,
-                                                "license": "Riot Games Legal Jibber Jabber (non-commercial use)"})
-    return int(ok)
+    dest = f"{GAME}/Esports Data/League of Legends (Riot Data Dragon)/{ver}"
+    got = sum(_download(s, f"https://ddragon.leagueoflegends.com/cdn/{ver}/data/en_US/{f}", 200 * 2 ** 20, sink,
+                        f"{dest}/{f}") for f in DD_FILES)
+    if got:
+        st["ddragon_en"] = ver
+        meta_note(sink, dest, {"source": "Riot Games Data Dragon", "version": ver, "locale": "en_US",
+                               "license": "Riot Games Legal Jibber Jabber (non-commercial use)"})
+    return got
 
 
 HF_SEARCHES = {  # folder: Hugging Face dataset searches
@@ -184,7 +188,8 @@ def huggingface(sink, st, per_query=3, dataset_cap=5 * 2 ** 30):
                 lic = (d.get("cardData") or {}).get("license")
                 lic = (lic[0] if isinstance(lic, list) and lic else lic) or next(
                     (t.split(":", 1)[1] for t in d.get("tags", []) if t.startswith("license:")), "")
-                if rid in seen_set or d.get("gated") or d.get("private") or str(lic).lower() not in HF_OPEN:
+                langs = [t.split(":", 1)[1] for t in d.get("tags", []) if t.startswith("language:")]
+                if rid in seen_set or d.get("gated") or d.get("private") or str(lic).lower() not in HF_OPEN                         or langs and "en" not in langs or not langs and not english(d.get("description")):
                     continue
                 seen.append(rid)
                 seen_set.add(rid)

@@ -196,14 +196,8 @@ def records(sink, st):
             done.append(key)
         if not st.get(f"records_meta_{rid}"):
             meta_note(sink, dest, {"source": d["metadata"]["title"], "record": d["links"]["self_html"],
-                                   "doi": d.get("doi"), "license": (d["metadata"].get("license") or {}).get("id"),
-                                   "also": "https://github.com/logpai/loghub (2k-line labelled samples + templates)"})
+                                   "doi": d.get("doi"), "license": (d["metadata"].get("license") or {}).get("id")})
             st[f"records_meta_{rid}"] = True
-    if "loghub_repo" not in done and not sink.full():
-        if _download(s, "https://github.com/logpai/loghub/archive/HEAD.zip", 2 ** 30, sink,
-                     f"{CLOUD}/Loghub System Logs/loghub repository (samples and templates).zip"):
-            n += 1
-        done.append("loghub_repo")
     return n
 
 

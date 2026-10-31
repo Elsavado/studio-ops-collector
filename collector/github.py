@@ -5,7 +5,7 @@ import os
 import re
 import time
 
-from .common import get, safe, session
+from .common import english, get, safe, session
 from .public import PUB, _download
 
 REPOS = f"{PUB}/11 GitHub Repositories"
@@ -119,7 +119,7 @@ def repos(sink, st, per_topic=3, max_kb=400 * 1024):
                 if took >= per_topic or sink.full():
                     break
                 name = repo["full_name"]
-                if name in done or not _licensed(repo) or repo.get("size", 0) > max_kb or repo.get("fork"):
+                if name in done or not _licensed(repo) or repo.get("size", 0) > max_kb or repo.get("fork")                         or not english(repo.get("description")):
                     continue
                 dest = f"{REPOS}/{folder}/{safe(name.replace('/', ' - '), 100)}.zip"
                 if _download(s, f"https://api.github.com/repos/{name}/zipball", 2 * 2 ** 30, sink, dest):
@@ -152,7 +152,7 @@ def notebooks(sink, st, per_query=3, per_repo=60, max_mb=25):
                     break
                 name = repo["full_name"]
                 about = " ".join([name, repo.get("description") or "", " ".join(repo.get("topics") or [])]).lower()
-                if name in done_set or not _licensed(repo) or not all(w in about for w in q.lower().split()):
+                if name in done_set or not _licensed(repo) or not all(w in about for w in q.lower().split())                         or not english(repo.get("description")):
                     continue
                 done.append(name)
                 done_set.add(name)

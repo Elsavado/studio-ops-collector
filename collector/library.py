@@ -8,7 +8,7 @@ from urllib.parse import quote
 from docx import Document
 from docx.shared import Pt
 
-from .common import get, safe, session
+from .common import english, get, safe, session
 from .public import LIB, _download, meta_note
 
 TOPICS = ["game design", "game development", "video games", "game programming", "virtual worlds", "esports",
@@ -94,7 +94,7 @@ def open_books(sink, st, per_topic=8):
         page = pages.get(topic, 1)
         time.sleep(1)
         r = get(s, "https://api.openalex.org/works", params={
-            "filter": f"title.search:{topic},type:book|book-chapter,open_access.is_oa:true",
+            "filter": f"title.search:{topic},type:book|book-chapter,open_access.is_oa:true,language:en",
             "per-page": 50, "page": page, "sort": "cited_by_count:desc",
             "select": "id,doi,title,publication_year,authorships,best_oa_location,primary_location,type"})
         res = r.json().get("results", []) if r else []
@@ -253,7 +253,7 @@ def videos(sink, st, per_query=3, item_cap=4 * 2 ** 30):
             time.sleep(1)
             r = get(s, "https://archive.org/advancedsearch.php", params={
                 "q": f'("{q}") AND mediatype:movies', "fl[]": ["identifier", "title", "licenseurl", "subject",
-                                                              "description"],
+                                                              "description", "language"],
                 "rows": 50, "page": page, "output": "json", "sort[]": "downloads desc"})
             docs = r.json().get("response", {}).get("docs", []) if r else []
             pages[q] = page + 1 if docs else 1
@@ -268,7 +268,7 @@ def videos(sink, st, per_query=3, item_cap=4 * 2 ** 30):
                 subj = doc.get("subject") or ""
                 text = " ".join([str(doc.get("title", "")), " ".join(subj) if isinstance(subj, list) else str(subj),
                                  str(doc.get("description", ""))[:3000]]).lower()
-                if not all(w in text for w in want):
+                if not all(w in text for w in want) or not english(text, doc.get("language")):
                     continue
                 seen.append(ident)
                 seen_set.add(ident)

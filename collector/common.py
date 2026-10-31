@@ -42,6 +42,62 @@ def safe(name, limit=120):
     return (name[:limit].rstrip(" .") or "untitled")
 
 
+EN_WORDS = set("the of and to in a is for on with by from this that are as be at or an data dataset using it we "
+               "which our can has have was were not all these its new between based".split())
+EN_LANG = {"en", "eng", "english", "en-us", "en-gb", "en_us", "en_gb"}
+
+
+def english(text, lang=None):
+    """True when content is English: a stated language must be English; otherwise the text (title + description)
+    must be mostly Latin letters with common English words among them."""
+    if lang:
+        langs = lang if isinstance(lang, (list, tuple, set)) else [lang]
+        return any(str(x).strip().lower() in EN_LANG for x in langs)
+    text = text or ""
+    letters = [c for c in text if c.isalpha()]
+    if letters and sum(c.isascii() for c in letters) / len(letters) < 0.9:
+        return False
+    words = re.findall(r"[a-z']+", text.lower())
+    if len(words) < 4:
+        return True  # too short to judge (a bare title); ASCII check above already passed
+    return sum(w in EN_WORDS for w in words) / len(words) >= 0.08 or len(words) < 8 and any(w in EN_WORDS for w in words)
+
+
+LANG_CODE = (r"(ar|bn|bg|ca|cs|da|de|el|es|et|fa|fi|fr|he|hi|hu|id|it|ja|ko|lt|lv|ms|nl|no|nb|pl|pt|pt-br|pt_br|ro|"
+             r"ru|sk|sl|sr|sv|th|tr|uk|ur|vi|zh|zh-cn|zh-tw|zh_cn|zh_tw|zh-hans|zh-hant|fil|sw|ta|te)")
+LANG_DIR = re.compile(LANG_CODE + r"$", re.I)
+LANG_PARENTS = {"content", "docs", "doc", "i18n", "locales", "locale", "translations", "translation", "l10n", "lang",
+                "languages", "copy", "manuals", "po", "localization", "localisation"}
+LANG_FILE = re.compile(r"[-_.]" + LANG_CODE + r"\.(md|mdx|rst|txt|html?|json|ya?ml|po|adoc|tex)$", re.I)
+
+
+def translated(member):
+    """True for an archive member that is a translation: a language folder under content/docs/i18n/..., or a
+    file named like README-ja.md / index.zh-CN.md."""
+    segs = member.split("/")
+    for i in range(1, len(segs) - 1):
+        if LANG_DIR.match(segs[i]) and segs[i - 1].lower() in LANG_PARENTS:
+            return True
+    return bool(LANG_FILE.search(segs[-1]))
+
+
+def english_zip(path):
+    """Rewrite a zip without its translations (keeps English). Returns bytes removed."""
+    import zipfile
+    with zipfile.ZipFile(path) as zf:
+        drop = [i for i in zf.infolist() if translated(i.filename)]
+        if not drop:
+            return 0
+        tmp = path + ".en"
+        skip = {i.filename for i in drop}
+        with zipfile.ZipFile(tmp, "w", zipfile.ZIP_DEFLATED) as out:
+            for i in zf.infolist():
+                if i.filename not in skip:
+                    out.writestr(i, zf.read(i.filename), zipfile.ZIP_DEFLATED)
+    os.replace(tmp, path)
+    return sum(i.file_size for i in drop)
+
+
 class State:
     def __init__(self, path):
         self.path = path

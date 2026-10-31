@@ -11,7 +11,7 @@ import time
 from docx import Document
 from docx.shared import Pt
 
-from .common import add_sheet, get, new_book, safe, save_book, session
+from .common import add_sheet, english, english_zip, get, new_book, safe, save_book, session
 
 PUB = "Public Data"
 GAME = f"{PUB}/01 Game Development"
@@ -150,6 +150,10 @@ def subtopic(q):
 
 # ---------- fixed sources ----------
 
+KEEP_EXT = {"csv", "tsv", "xlsx", "xls", "xlsm", "json", "geojson", "xml", "txt", "log", "pdf", "docx", "doc",
+            "pptx", "ppt", "zip", "gz", "parquet", "pcap", "ipynb", "md", "odt", "ods", "rtf", "jsonl"}
+
+
 def _download(s, url, cap, sink, rel):
     """Stream url to the sink path; drop it if it is bigger than cap. Returns True when saved."""
     p = sink.path(rel)
@@ -167,6 +171,16 @@ def _download(s, url, cap, sink, rel):
         if n > cap or n == 0:
             os.remove(p)
             return False
+        if p.lower().endswith(".pdf"):
+            with open(p, "rb") as f:
+                if not f.read(1024).lstrip().startswith(b"%PDF"):  # a landing page served in place of the PDF
+                    os.remove(p)
+                    return False
+        if p.lower().endswith(".zip"):
+            try:
+                english_zip(p)  # English only: drop bundled translations
+            except Exception:
+                pass
         if p.lower().endswith((".htm", ".html")):
             p = html_to_pdf(p)
         sink.wrote(p)
@@ -224,7 +238,9 @@ def zenodo(sink, st, per_query=6, cap=2 * 2 ** 30):
                 rid = str(h["id"])
                 md = h.get("metadata", {})
                 lic = (md.get("license") or {}).get("id", "")
-                if rid in seen_set or not _open(lic):
+                if rid in seen_set or not _open(lic) or not english(
+                        f"{md.get('title', '')} {re.sub('<[^>]+>', ' ', md.get('description') or '')[:2000]}",
+                        md.get("language")):
                     continue
                 seen.append(rid)
                 seen_set.add(rid)
@@ -300,7 +316,8 @@ def opendata(sink, st, per_query=5, cap=1 * 2 ** 30):
                 rs, md = x["resource"], x["metadata"]
                 key = f"{md['domain']}/{rs['id']}"
                 name = rs.get("name") or rs["id"]
-                if key in seen_set or not _open_portal(md.get("license")):
+                if key in seen_set or not _open_portal(md.get("license")) or not english(
+                        f"{name} {(rs.get('description') or '')[:2000]}"):
                     continue
                 words = set(re.findall(r"[a-z0-9]+", name.lower()))
                 if not all(w in words or w + "s" in words for w in want):

@@ -3,7 +3,7 @@
 import os
 import time
 
-from .common import get, safe, session
+from .common import english, get, safe, session
 from .public import ACC, ENG, FIN, GAME, GTM, HR, LEGAL, PROD, SECU, _download, meta_note, subtopic
 
 SEARCHES = {
@@ -63,7 +63,7 @@ def kaggle(sink, st, per_query=3, cap=3 * 2 ** 30):
                 if took >= per_query or sink.full():
                     break
                 ref = d.get("ref", "")
-                if not ref or ref in seen_set or not _ok(d.get("licenseName")) or d.get("totalBytes", 0) > cap:
+                if not ref or ref in seen_set or not _ok(d.get("licenseName")) or d.get("totalBytes", 0) > cap                         or not english(f"{d.get('title') or ''} {d.get('subtitle') or ''}"):
                     continue
                 seen.append(ref)
                 seen_set.add(ref)
